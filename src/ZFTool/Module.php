@@ -94,6 +94,13 @@ class Module implements ConsoleUsageProviderInterface, AutoloaderProviderInterfa
             array('<module>', 'The module containing the controller'),
             array('<path>', 'The root path of a ZF2 application where to create the action'),
 
+            'Service Factory creation:',
+            'create service-factory <service> [<factory>] [<path>]' => 'create a factory for a service',
+            array('<service>', 'The class for which a factory should be created.'),
+            array('<factory>', 'The class which should contain the factory. '
+                             . 'If not supplied, defaults to <service>Factory.'),
+            array('<path>', 'The root path of a ZF2 application where to create the factory.'),
+
             'Classmap generator:',
             'classmap generate <directory> <classmap file> [--append|-a] [--overwrite|-w]' => '',
             array('<directory>',        'The directory to scan for PHP classes (use "." to use current directory)'),

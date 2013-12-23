@@ -301,6 +301,102 @@ EOD;
         }
     }
 
+    public function serviceFactoryAction()
+    {
+        $console          = $this->getServiceLocator()->get('console');
+        $request          = $this->getRequest();
+        $serviceFQCN      = $request->getParam('service');
+        $factoryFQCN      = $request->getParam('factory', $serviceFQCN . 'Factory');
+        $path             = $request->getParam('path', '.');
+        $module           = strstr($serviceFQCN, '\\', true);
+        $factoryNamespace = substr($factoryFQCN, 0, strrpos($factoryFQCN, '\\'));
+        $factoryShortName = substr($factoryFQCN, strrpos($factoryFQCN, '\\')+1);
+        $servicePath      = sprintf('%s/module/%s/src/%s.php', $path, $module, str_replace('\\', '/', $serviceFQCN));
+        $factoryPath      = sprintf('%s/module/%s/src/%s.php', $path, $module, str_replace('\\', '/', $factoryFQCN));
+
+        $console->writeLine("Creating factory '$factoryFQCN' for service '$serviceFQCN'.", Color::YELLOW);
+
+        if (!file_exists("$path/module") || !file_exists($servicePath)) {
+            return $this->sendError(
+                "The path $path doesn't contain a ZF2 application. I cannot create a service factory"
+            );
+        }
+
+        if (!file_exists($servicePath)) {
+            return $this->sendError("The service for which to create a factory does not exist in $servicePath");
+        }
+
+        if (file_exists($factoryPath)) {
+            return $this->sendError("The file $factoryPath already exists");
+        }
+
+        $fileReflection  = new Reflection\FileReflection($servicePath, true);
+        $classReflection = $fileReflection->getClass($serviceFQCN);
+
+        $parameters = array();
+        if ($classReflection->getConstructor()) {
+            foreach ($classReflection->getConstructor()->getParameters() as $each) {
+                if ($each->isOptional()) {
+                    break;
+                }
+
+                if ($each->getClass()) {
+                    $parameters[] = sprintf("    \$services->get('%s')", addslashes($each->getClass()->name));
+                    continue;
+                }
+
+                if ($each->isArray()) {
+                    $parameters[] = "    array()";
+                    continue;
+                }
+
+                if ($each->isCallable()) {
+                    $parameters[] = "    function () {}";
+                    continue;
+                }
+
+                $parameters[] = "    null";
+            }
+        }
+
+        $useFQCN    = $classReflection->getShortName() === $factoryShortName;
+        $methodBody = sprintf(
+            'return new %s(',
+            $useFQCN ? '\\' . $classReflection->name : $classReflection->getShortName())
+        ;
+        if (count($parameters) > 0) {
+            $methodBody .= "\n" . implode(",\n", $parameters) . "\n";
+        }
+        $methodBody .= ");";
+
+        $code = new Generator\ClassGenerator();
+        $code->setNamespaceName($factoryNamespace)
+             ->addUse('Zend\ServiceManager\FactoryInterface')
+             ->addUse('Zend\ServiceManager\ServiceLocatorInterface');
+
+        if (!$useFQCN && $classReflection->getNamespaceName() != $factoryNamespace) {
+            $code->addUse($classReflection->name);
+        }
+
+        $code->setName($factoryFQCN)
+             ->setImplementedInterfaces(array('FactoryInterface'))
+             ->addMethods(array(
+                              new Generator\MethodGenerator(
+                                  'createService',
+                                  array(new Generator\ParameterGenerator('services', 'ServiceLocatorInterface')),
+                                  Generator\MethodGenerator::FLAG_PUBLIC,
+                                  $methodBody
+                              ),
+                          ));
+
+        $file = new Generator\FileGenerator(array('classes'  => array($code)));
+        if (file_put_contents($factoryPath, $file->generate())) {
+            $console->writeLine("The service factory $factoryFQCN has been created.", Color::GREEN);
+        } else {
+            $console->writeLine("There was an error during service factory creation.", Color::RED);
+        }
+    }
+
     /**
      * Send an error message to the console
      *
