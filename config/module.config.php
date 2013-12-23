@@ -117,6 +117,15 @@ return array(
                         ),
                     ),
                 ),
+                'zftool-create-service-factory' => array(
+                    'options' => array(
+                        'route' => 'create service-factory <service> [<factory>] [<path>]',
+                        'defaults' => array(
+                            'controller' => 'ZFTool\Controller\Create',
+                            'action'     => 'service-factory'
+                        ),
+                    ),
+                ),
                 'zftool-install-zf' => array(
                     'options' => array(
                         'route'    => 'install zf <path> [<version>]',
